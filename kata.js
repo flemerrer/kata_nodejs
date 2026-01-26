@@ -3,6 +3,8 @@
 const express = require('express')
 const app = express()
 
+app.use(express.json());
+
 app.get('/', (request, response) => {
 	response.send('Hello World!')
 })
@@ -40,7 +42,14 @@ const PASTRIES = [
 	}
 ]
 
-const _ok = body => {
+const _success = message => {
+	return {
+		status: "ok",
+		message: message
+	}
+}
+
+const _ressource = body => {
 	return {
 		status: "ok",
 		data: body
@@ -55,15 +64,35 @@ const _error = error => {
 }
 
 app.get('/menu', async (request, response) => {
-	response.json(_ok({"menu": PASTRIES}))
+	response.json(_ressource({"menu": PASTRIES}))
+})
+
+app.post('/menu', (request, response) => {
+	if (request.body.name && request.body.price) {
+		try {
+			const newId = PASTRIES.length + 1
+			PASTRIES.push({
+				id: newId,
+				name: request.body.name,
+				price: request.body.price
+			})
+			if (newId === PASTRIES.length) {
+				response.json(_success("Pastry added successfully."))
+			}
+		} catch (error) {
+			response.json(_error("An error occured."))
+		}
+	} else {
+		response.json(_error("Missing body parameters."))
+	}
 })
 
 app.get('/menu/:id', async (request, response) => {
 	const pastry = PASTRIES[request.params.id - 1]
 	if (pastry) {
-		response.json(_ok({"item": pastry}))
+		response.json(_ressource({"item": pastry}))
 	} else {
-		response.json(_error("not found"))
+		response.json(_error("Item not found."))
 	}
 })
 
