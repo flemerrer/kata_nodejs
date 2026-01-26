@@ -40,25 +40,30 @@ const PASTRIES = [
 	}
 ]
 
-app.get('/menu', async (request, response) => {
-	response.json({
+const _ok = body => {
+	return {
 		status: "ok",
-		pastries: PASTRIES
-	})
+		data: body
+	}
+}
+
+const _error = error => {
+	return {
+		status: "error",
+		error: error
+	}
+}
+
+app.get('/menu', async (request, response) => {
+	response.json(_ok({"menu": PASTRIES}))
 })
 
 app.get('/menu/:id', async (request, response) => {
 	const pastry = PASTRIES[request.params.id - 1]
 	if (pastry) {
-		response.json({
-			status: "ok",
-			pastry: pastry
-		})
+		response.json(_ok({"item": pastry}))
 	} else {
-		response.json({
-			status: "error",
-			error: "not found"
-		})
+		response.json(_error("not found"))
 	}
 })
 
