@@ -1,46 +1,23 @@
 #!/usr/bin/env node
 
 const express = require('express')
+const mongoose = require('mongoose')
+const {methods} = require("express/lib/utils");
 const app = express()
 
-app.use(express.json());
+app.use(express.json())
 
-app.get('/', (request, response) => {
-	response.send("Welcome to Dan's Bakery !")
+const pastrySchema = new mongoose.Schema({
+	id: Number,
+	name: String,
+	price: Number
 })
 
-const PASTRIES = [
-	{
-		id: 1,
-		name: "Pain au chocolat",
-		price: 2.0
-	},
-	{
-		id: 2,
-		name: "Croissant",
-		price: 1.5
-	},
-	{
-		id: 3,
-		name: "Éclair au chocolat",
-		price: 2.5
-	},
-	{
-		id: 4,
-		name: "Brioche",
-		price: 1.5
-	},
-	{
-		id: 5,
-		name: "Part de flan",
-		price: 3.0
-	},
-	{
-		id: 6,
-		name: "Tartelette aux fraises",
-		price: 3.5
-	}
-]
+const pastry = mongoose.model('pastries', pastrySchema)
+
+async function main() {
+	await mongoose.connect('mongodb://127.0.0.1:27017/pastries')
+}
 
 const _success = message => {
 	return {
@@ -63,30 +40,16 @@ const _error = error => {
 	}
 }
 
-app.get('/menu', async (request, response) => {
-	response.json(_ressource({"menu": PASTRIES}))
-})
-
-const itemAlreadyExists = name => {
+const itemAlreadyExists = (pastries, name) => {
 	let isUnique = false
-	PASTRIES.forEach(p => {
+	pastries.forEach(p => {
 		if (name === p.name) isUnique = true
 	})
-	return isUnique;
+	return isUnique
 }
 
-const addPastry = (name, price) => {
-	const newId = PASTRIES.length + 1
-	PASTRIES.push({
-		id: newId,
-		name: name,
-		price: price
-	})
-	return newId
-}
-
-function checkValidity(name, price) {
-	const isUnique = itemAlreadyExists(name);
+function checkValidity(pastries, name, price) {
+	const isUnique = itemAlreadyExists(pastries, name)
 
 	if (!name || !price) {
 		return [false, "Missing body parameters."]
@@ -103,44 +66,68 @@ function checkValidity(name, price) {
 	}
 }
 
-app.post('/menu', (request, response) => {
+app.get('/', async (request, response) => {
+	response.send("Welcome to Dan's Bakery !")
+})
+
+app.get('/menu', async (request, response) => {
+	const items = await pastry.find({}, null, null).exec()
+	const cleanedItems = []
+	items.forEach(p => { cleanedItems.push({id: p.id, name: p.name, price: p.price})})
+	response.json(_ressource({"menu": cleanedItems}))
+})
+
+app.post('/menu', async (request, response) => {
 		const name = request.body.name
 		const price = request.body.price
-		const isValidItem = checkValidity(name, price)
+		const items = await pastry.find({}, null, null).exec()
+		const isValidPastry = checkValidity(items, name, price)
+		const message = isValidPastry[1]
 
-		if (isValidItem[0]) {
+		if (isValidPastry[0]) {
 			try {
-				const newId = addPastry(name, price);
-				if (newId === PASTRIES.length) {
-					response.json(_success(isValidItem[1]))
+				const item = new pastry({
+					id: items.length + 1,
+					name: name,
+					price: price
+				})
+				const id = await item.save(item)
+				if (id) {
+					response.json(_success(message))
 				}
 			} catch (error) {
 				response.json(_error("An error occurred."))
 			}
 		} else {
-			response.json(_error(isValidItem[1]))
+			response.json(_error(message))
 		}
 	}
 )
 
 app.get('/menu/:id', async (request, response) => {
-	const pastry = PASTRIES[request.params.id - 1]
-	if (pastry) {
-		response.json(_ressource({"item": pastry}))
+	const item = await pastry.findOne({id: request.params.id}, null, null).exec()
+	if (item) {
+		const cleanedItem = {
+			id: item.id,
+			name: item.name,
+			price: item.price
+		}
+		response.json(_ressource({"item": cleanedItem}))
 	} else {
 		response.json(_error("Item not found."))
 	}
 })
 
 app.delete('/menu/:id', async (request, response) => {
-	const pastry = PASTRIES[request.params.id - 1]
-	if (pastry) {
+	const item = await pastry.findOne({id: request.params.id}, null, null).exec()
+	if (item) {
 		try {
-			PASTRIES.splice(pastry.id - 1, 1)
-			PASTRIES.forEach(p => {
-				if (p.id > request.params.id) p.id--
-			})
-			response.json(_success("Item removed successfully."))
+			const deleted = await pastry.deleteOne(item)
+			if (deleted) {
+				response.json(_success("Item deleted successfully."))
+			} else {
+				response.json(_error("Deletion failed."))
+			}
 		} catch (error) {
 			response.json(_error("An error occurred."))
 		}
@@ -149,6 +136,9 @@ app.delete('/menu/:id', async (request, response) => {
 	}
 })
 
-app.listen(3000, () => {
-	console.log('Server started on port 3000!')
-})
+main().catch(err => console.log(err)).then(() => {
+		app.listen(3000, () => {
+			console.log('Server started on port 3000!')
+		})
+	}
+)
