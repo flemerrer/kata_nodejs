@@ -19,25 +19,14 @@ async function main() {
 	await mongoose.connect('mongodb://127.0.0.1:27017/pastries')
 }
 
-const _success = message => {
-	return {
-		status: "ok",
-		message: message
+const _response = (status, code, message = null, data = null) => {
+	const response = {
+		status: status,
+		code: code,
 	}
-}
-
-const _ressource = body => {
-	return {
-		status: "ok",
-		data: body
-	}
-}
-
-const _error = error => {
-	return {
-		status: "error",
-		error: error
-	}
+	if (message) response.message = message
+	if (data) response.data = data
+	return response
 }
 
 const itemAlreadyExists = (pastries, name) => {
@@ -67,14 +56,16 @@ function checkValidity(pastries, name, price) {
 }
 
 app.get('/', async (request, response) => {
-	response.send("Welcome to Dan's Bakery !")
+	response.json(_response("ok", 200, "Welcome to Dan's Bakery !"))
 })
 
 app.get('/menu', async (request, response) => {
 	const items = await pastry.find({}, null, null).exec()
 	const cleanedItems = []
-	items.forEach(p => { cleanedItems.push({id: p.id, name: p.name, price: p.price})})
-	response.json(_ressource({"menu": cleanedItems}))
+	items.forEach(p => {
+		cleanedItems.push({id: p.id, name: p.name, price: p.price})
+	})
+	response.json(_response("ok", 200, {"menu": cleanedItems}))
 })
 
 app.post('/menu', async (request, response) => {
@@ -93,13 +84,15 @@ app.post('/menu', async (request, response) => {
 				})
 				const id = await item.save(item)
 				if (id) {
-					response.json(_success(message))
+					response.json(_response("ok", 201, message))
+				} else {
+					response.json(_response("error", 500, "An error occurred."))
 				}
 			} catch (error) {
-				response.json(_error("An error occurred."))
+				response.json(_response("error", 500, "An error occurred."))
 			}
 		} else {
-			response.json(_error(message))
+			response.json(_response("error", 401, message))
 		}
 	}
 )
@@ -108,13 +101,11 @@ app.get('/menu/:id', async (request, response) => {
 	const item = await pastry.findOne({id: request.params.id}, null, null).exec()
 	if (item) {
 		const cleanedItem = {
-			id: item.id,
-			name: item.name,
-			price: item.price
+			id: item.id, name: item.name, price: item.price
 		}
-		response.json(_ressource({"item": cleanedItem}))
+		response.json(_response("ok", 200, null, {"item": cleanedItem}))
 	} else {
-		response.json(_error("Item not found."))
+		response.json(_response("error", 404, "Item not found."))
 	}
 })
 
@@ -124,15 +115,15 @@ app.delete('/menu/:id', async (request, response) => {
 		try {
 			const deleted = await pastry.deleteOne(item)
 			if (deleted) {
-				response.json(_success("Item deleted successfully."))
+				response.json(_response("success", 202, "Item deleted successfully."))
 			} else {
-				response.json(_error("Deletion failed."))
+				response.json(_response("error", 500, "Deletion failed."))
 			}
 		} catch (error) {
-			response.json(_error("An error occurred."))
+			response.json(_response("error", 500, "An error occurred."))
 		}
 	} else {
-		response.json(_error("Item not found."))
+		response.json(_response("error", 404, "Item not found."))
 	}
 })
 
