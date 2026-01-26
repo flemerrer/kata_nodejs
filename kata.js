@@ -6,7 +6,7 @@ const app = express()
 app.use(express.json());
 
 app.get('/', (request, response) => {
-	response.send('Hello World!')
+	response.send("Welcome to Dan's Bakery !")
 })
 
 const PASTRIES = [
@@ -68,20 +68,28 @@ app.get('/menu', async (request, response) => {
 })
 
 app.post('/menu', (request, response) => {
-	if (request.body.name && request.body.price) {
-		try {
-			const newId = PASTRIES.length + 1
-			PASTRIES.push({
-				id: newId,
-				name: request.body.name,
-				price: request.body.price
-			})
-			if (newId === PASTRIES.length) {
-				response.json(_success("Pastry added successfully."))
+	const name = request.body.name
+	const price = request.body.price
+
+	if (name && price) {
+		if ((typeof (name) == "string" && typeof(price) == "number")) {
+			try {
+				const newId = PASTRIES.length + 1
+				PASTRIES.push({
+					id: newId,
+					name: name,
+					price: price
+				})
+				if (newId === PASTRIES.length) {
+					response.json(_success("Pastry added successfully."))
+				}
+			} catch (error) {
+				response.json(_error("An error occurred."))
 			}
-		} catch (error) {
-			response.json(_error("An error occured."))
+		} else {
+			response.json(_error("Wrong parameters types."))
 		}
+
 	} else {
 		response.json(_error("Missing body parameters."))
 	}
@@ -95,6 +103,24 @@ app.get('/menu/:id', async (request, response) => {
 		response.json(_error("Item not found."))
 	}
 })
+
+app.delete('/menu/:id', async (request, response) => {
+	const pastry = PASTRIES[request.params.id - 1]
+	if (pastry) {
+		try {
+		PASTRIES.splice(pastry.id-1, 1)
+		PASTRIES.forEach(p => {
+			if (p.id > request.params.id) p.id--
+		})
+		response.json(_success("Item removed successfully."))
+		} catch (error) {
+			response.json(_error("An error occurred."))
+		}
+	} else {
+		response.json(_error("Item not found."))
+	}
+})
+
 
 app.listen(3000, () => {
 	console.log('Server started on port 3000!')
