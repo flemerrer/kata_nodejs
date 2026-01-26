@@ -67,33 +67,61 @@ app.get('/menu', async (request, response) => {
 	response.json(_ressource({"menu": PASTRIES}))
 })
 
-app.post('/menu', (request, response) => {
-	const name = request.body.name
-	const price = request.body.price
+function itemAlreadyExists(name) {
+	let isUnique = false
+	PASTRIES.forEach(p => {
+		if (name === p.name) isUnique = true
+	})
+	return isUnique;
+}
 
-	if (name && price) {
-		if ((typeof (name) == "string" && typeof(price) == "number")) {
+function addPastry(name, price) {
+	const newId = PASTRIES.length + 1
+	PASTRIES.push({
+		id: newId,
+		name: name,
+		price: price
+	})
+	return newId
+}
+
+function isValidItem(name, price) {
+	const isUnique = itemAlreadyExists(name);
+
+	if (!name || !price) {
+		return [false, "Missing body parameters."]
+	} else if (isUnique) {
+		return [false, "This item already exists."]
+	} else if (typeof (name) != "string" || typeof (price) != "number") {
+		return [false, "Wrong parameters types."]
+	} else if (price > 50) {
+		return [false, "Ain't nobody gonna pay for that!"]
+	} else if (name.toLowerCase() === "chocolatine") {
+		return [false, "It's called 'Pain au Chocolat'!"]
+	} else {
+		return [true, "Pastry added successfully."]
+	}
+}
+
+app.post('/menu', (request, response) => {
+		const name = request.body.name
+		const price = request.body.price
+		const isValid = isValidItem(name, price)
+
+		if (isValid[0]) {
 			try {
-				const newId = PASTRIES.length + 1
-				PASTRIES.push({
-					id: newId,
-					name: name,
-					price: price
-				})
+				const newId = addPastry(name, price);
 				if (newId === PASTRIES.length) {
-					response.json(_success("Pastry added successfully."))
+					response.json(_success(isValid[1]))
 				}
 			} catch (error) {
 				response.json(_error("An error occurred."))
 			}
 		} else {
-			response.json(_error("Wrong parameters types."))
+			response.json(_error(isValid[1]))
 		}
-
-	} else {
-		response.json(_error("Missing body parameters."))
 	}
-})
+)
 
 app.get('/menu/:id', async (request, response) => {
 	const pastry = PASTRIES[request.params.id - 1]
@@ -108,11 +136,11 @@ app.delete('/menu/:id', async (request, response) => {
 	const pastry = PASTRIES[request.params.id - 1]
 	if (pastry) {
 		try {
-		PASTRIES.splice(pastry.id-1, 1)
-		PASTRIES.forEach(p => {
-			if (p.id > request.params.id) p.id--
-		})
-		response.json(_success("Item removed successfully."))
+			PASTRIES.splice(pastry.id - 1, 1)
+			PASTRIES.forEach(p => {
+				if (p.id > request.params.id) p.id--
+			})
+			response.json(_success("Item removed successfully."))
 		} catch (error) {
 			response.json(_error("An error occurred."))
 		}
@@ -120,7 +148,6 @@ app.delete('/menu/:id', async (request, response) => {
 		response.json(_error("Item not found."))
 	}
 })
-
 
 app.listen(3000, () => {
 	console.log('Server started on port 3000!')
