@@ -51,7 +51,7 @@ function checkValidity(pastries, name, price) {
 	} else if (name.toLowerCase() === "chocolatine") {
 		return [false, "It's called 'Pain au Chocolat'!"]
 	} else {
-		return [true, "Pastry added successfully."]
+		return [true, "Item added successfully."]
 	}
 }
 
@@ -65,7 +65,7 @@ app.get('/menu', async (request, response) => {
 	items.forEach(p => {
 		cleanedItems.push({id: p.id, name: p.name, price: p.price})
 	})
-	response.json(_response("ok", 200, {"menu": cleanedItems}))
+	response.json(_response("ok", 200, null, {"menu": cleanedItems}))
 })
 
 app.post('/menu', async (request, response) => {
@@ -77,11 +77,7 @@ app.post('/menu', async (request, response) => {
 
 		if (isValidPastry[0]) {
 			try {
-				const item = new pastry({
-					id: items.length + 1,
-					name: name,
-					price: price
-				})
+				const item = new pastry({id: items.length + 1, name: name, price: price})
 				const id = await item.save(item)
 				if (id) {
 					response.json(_response("ok", 201, message))
@@ -103,10 +99,40 @@ app.get('/menu/:id', async (request, response) => {
 		const cleanedItem = {
 			id: item.id, name: item.name, price: item.price
 		}
-		response.json(_response("ok", 200, null, {"item": cleanedItem}))
+		response.json(_response("ok", 200, null, cleanedItem))
 	} else {
 		response.json(_response("error", 404, "Item not found."))
 	}
+})
+
+app.patch('/menu/:id', async (request, response) => {
+	const idAlreadyExists = await pastry.findOne({id: request.body.id}, null, null).exec()
+	const nameAlreadyExists = await pastry.findOne({name: request.body.name}, null, null).exec()
+	const updated = {
+		id: request.body.id,
+		name: request.body.name,
+		price: request.body.price
+	}
+	if (!idAlreadyExists && !nameAlreadyExists) {
+		try {
+			const item = await pastry.findOneAndUpdate({
+				id: request.params.id,
+			}, updated, null).exec()
+			if (item) {
+				response.json(_response("ok", 202, "Item updated successfully."))
+			} else {
+				response.json(_response("error", 404, "Item not found."))
+			}
+		} catch (error) {
+			response.json(_response("error", 500, "An error occurred."))
+		}
+	} else {
+		let message;
+		if (nameAlreadyExists) message = "This name is taken."
+		if (idAlreadyExists) message = "This id is taken."
+		response.json(_response("error", 401, message))
+	}
+
 })
 
 app.delete('/menu/:id', async (request, response) => {
@@ -115,7 +141,8 @@ app.delete('/menu/:id', async (request, response) => {
 		try {
 			const deleted = await pastry.deleteOne(item)
 			if (deleted) {
-				response.json(_response("success", 202, "Item deleted successfully."))
+				const cleanedItem = {id: item.id, name: item.name, price: item.price}
+				response.json(_response("success", 202, `Item #${item.id} deleted successfully.`, cleanedItem))
 			} else {
 				response.json(_response("error", 500, "Deletion failed."))
 			}
