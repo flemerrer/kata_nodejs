@@ -67,7 +67,7 @@ app.get('/menu', async (request, response) => {
 	response.json(_ressource({"menu": PASTRIES}))
 })
 
-function itemAlreadyExists(name) {
+const itemAlreadyExists = name => {
 	let isUnique = false
 	PASTRIES.forEach(p => {
 		if (name === p.name) isUnique = true
@@ -75,7 +75,7 @@ function itemAlreadyExists(name) {
 	return isUnique;
 }
 
-function addPastry(name, price) {
+const addPastry = (name, price) => {
 	const newId = PASTRIES.length + 1
 	PASTRIES.push({
 		id: newId,
@@ -85,7 +85,7 @@ function addPastry(name, price) {
 	return newId
 }
 
-function isValidItem(name, price) {
+function checkValidity(name, price) {
 	const isUnique = itemAlreadyExists(name);
 
 	if (!name || !price) {
@@ -106,19 +106,19 @@ function isValidItem(name, price) {
 app.post('/menu', (request, response) => {
 		const name = request.body.name
 		const price = request.body.price
-		const isValid = isValidItem(name, price)
+		const isValidItem = checkValidity(name, price)
 
-		if (isValid[0]) {
+		if (isValidItem[0]) {
 			try {
 				const newId = addPastry(name, price);
 				if (newId === PASTRIES.length) {
-					response.json(_success(isValid[1]))
+					response.json(_success(isValidItem[1]))
 				}
 			} catch (error) {
 				response.json(_error("An error occurred."))
 			}
 		} else {
-			response.json(_error(isValid[1]))
+			response.json(_error(isValidItem[1]))
 		}
 	}
 )
