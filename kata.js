@@ -2,7 +2,6 @@
 
 const express = require('express')
 const mongoose = require('mongoose')
-const {methods} = require("express/lib/utils");
 const app = express()
 
 app.use(express.json())
@@ -75,82 +74,94 @@ app.post('/menu', async (request, response) => {
 		const isValidPastry = checkValidity(items, name, price)
 		const message = isValidPastry[1]
 
-		if (isValidPastry[0]) {
-			try {
-				const item = new pastry({id: items.length + 1, name: name, price: price})
-				const id = await item.save(item)
-				if (id) {
-					response.json(_response("ok", 201, message))
-				} else {
-					response.json(_response("error", 500, "An error occurred."))
-				}
-			} catch (error) {
+		if (!isValidPastry[0]) {
+			response.json(_response("error", 401, message))
+		}
+		try {
+			const item = new pastry({id: items.length + 1, name: name, price: price})
+			const id = await item.save(item)
+			if (id) {
+				response.json(_response("ok", 201, message))
+			} else {
 				response.json(_response("error", 500, "An error occurred."))
 			}
-		} else {
-			response.json(_response("error", 401, message))
+		} catch (error) {
+			response.json(_response("error", 500, "An error occurred."))
 		}
 	}
 )
 
 app.get('/menu/:id', async (request, response) => {
 	const item = await pastry.findOne({id: request.params.id}, null, null).exec()
-	if (item) {
-		const cleanedItem = {
-			id: item.id, name: item.name, price: item.price
-		}
-		response.json(_response("ok", 200, null, cleanedItem))
-	} else {
+	if (!item) {
 		response.json(_response("error", 404, "Item not found."))
 	}
+	const cleanedItem = {
+		id: item.id, name: item.name, price: item.price
+	}
+	response.json(_response("ok", 200, null, cleanedItem))
+
 })
 
 app.patch('/menu/:id', async (request, response) => {
-	const idAlreadyExists = await pastry.findOne({id: request.body.id}, null, null).exec()
-	const nameAlreadyExists = await pastry.findOne({name: request.body.name}, null, null).exec()
-	const updated = {
-		id: request.body.id,
-		name: request.body.name,
-		price: request.body.price
+	const newId = request.body.id
+	const newName = request.body.name
+	const newPrice = request.body.price
+
+	const itemToUpdate = await pastry.findOne({id: request.params.id}, null, null).exec()
+	if (!itemToUpdate) {
+		response.json(_response("error", 404, "Item not found."))
 	}
-	if (!idAlreadyExists && !nameAlreadyExists) {
-		try {
-			const item = await pastry.findOneAndUpdate({
-				id: request.params.id,
-			}, updated, null).exec()
-			if (item) {
-				response.json(_response("ok", 202, "Item updated successfully."))
-			} else {
-				response.json(_response("error", 404, "Item not found."))
-			}
-		} catch (error) {
-			response.json(_response("error", 500, "An error occurred."))
-		}
-	} else {
+
+	let idIsTaken
+	let nameIsTaken
+	if (newId !== itemToUpdate.id) {
+		idIsTaken = await pastry.findOne({id: newId}, null, null).exec()
+	}
+	if (newName !== itemToUpdate.name) {
+		nameIsTaken = await pastry.findOne({name: newName}, null, null).exec()
+	}
+	if (idIsTaken || nameIsTaken) {
 		let message;
-		if (nameAlreadyExists) message = "This name is taken."
-		if (idAlreadyExists) message = "This id is taken."
+		if (nameIsTaken) message = "This name is taken."
+		if (idIsTaken) message = "This id is taken."
 		response.json(_response("error", 401, message))
+	}
+
+	try {
+		const updated = {}
+		if (newId) updated.price = newPrice
+		if (newName) updated.price = newName
+		if (newPrice) updated.price = newPrice
+		const item = await pastry.findOneAndUpdate({
+			id: request.params.id,
+		}, updated, null).exec()
+		if (item) {
+			response.json(_response("ok", 202, "Item updated successfully."))
+		} else {
+			response.json(_response("error", 404, "Item not found."))
+		}
+	} catch (error) {
+		response.json(_response("error", 500, "An error occurred."))
 	}
 
 })
 
 app.delete('/menu/:id', async (request, response) => {
 	const item = await pastry.findOne({id: request.params.id}, null, null).exec()
-	if (item) {
-		try {
-			const deleted = await pastry.deleteOne(item)
-			if (deleted) {
-				const cleanedItem = {id: item.id, name: item.name, price: item.price}
-				response.json(_response("success", 202, `Item #${item.id} deleted successfully.`, cleanedItem))
-			} else {
-				response.json(_response("error", 500, "Deletion failed."))
-			}
-		} catch (error) {
-			response.json(_response("error", 500, "An error occurred."))
-		}
-	} else {
+	if (!item) {
 		response.json(_response("error", 404, "Item not found."))
+	}
+	try {
+		const deleted = await pastry.deleteOne(item)
+		if (deleted) {
+			const cleanedItem = {id: item.id, name: item.name, price: item.price}
+			response.json(_response("success", 202, `Item #${item.id} deleted successfully.`, cleanedItem))
+		} else {
+			response.json(_response("error", 500, "Deletion failed."))
+		}
+	} catch (error) {
+		response.json(_response("error", 500, "An error occurred."))
 	}
 })
 
