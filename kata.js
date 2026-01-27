@@ -2,20 +2,36 @@
 
 const express = require('express')
 const mongoose = require('mongoose')
-const app = express()
 
+const jwt = require('jsonwebtoken');
+const {loadEnvFile} = require('node:process');
+
+loadEnvFile('.env');
+const SECRET = process.env.SECRET
+
+const app = express()
 app.use(express.json())
 
-const pastrySchema = new mongoose.Schema({
+const pastriesSchema = new mongoose.Schema({
 	id: Number,
 	name: String,
 	price: Number
 })
+const Pastries = mongoose.model('Pastries', pastriesSchema)
 
-const pastry = mongoose.model('pastries', pastrySchema)
+const usersSchema = new mongoose.Schema({
+	email: String,
+	password: String
+})
+const Users = mongoose.model('Users', usersSchema)
 
 async function main() {
-	await mongoose.connect('mongodb://127.0.0.1:27017/pastries')
+
+	await mongoose.connect(process.env.DB)
+}
+
+const tokenIsValid = token => {
+	return jwt.verify(token, SECRET);
 }
 
 const _response = (status, code, message = null, data = null) => {
@@ -36,7 +52,7 @@ const itemAlreadyExists = (pastries, name) => {
 	return isUnique
 }
 
-function checkValidity(pastries, name, price) {
+function pastryIsValid(pastries, name, price) {
 	const isUnique = itemAlreadyExists(pastries, name)
 
 	if (!name || !price) {
@@ -55,118 +71,162 @@ function checkValidity(pastries, name, price) {
 }
 
 app.get('/', async (request, response) => {
-	response.json(_response("ok", 200, "Welcome to Dan's Bakery !"))
+	return response.json(_response("ok", 200, "Welcome to Dan's Bakery !"))
+})
+
+app.post('/auth', async (request, response) => {
+	const email = request.body.email
+	const password = request.body.password
+	const userExists = await Users.findOne({"email": email}, null, null).exec()
+	if (userExists && password === userExists.password) {
+		try {
+			const token = jwt.sign({email: email}, SECRET)
+			return response.json(_response("ok", 200, "Authorized", {"token": token}))
+		} catch (error) {
+			console.log(error)
+			return response.json(_response("error", 500, "An error occurred."))
+		}
+	} else {
+		return response.json(_response("error", 401, "Bad Credentials"))
+	}
 })
 
 app.get('/menu', async (request, response) => {
-	const items = await pastry.find({}, null, null).exec()
+	const items = await Pastries.find({}, null, null).exec()
 	const cleanedItems = []
 	items.forEach(p => {
 		cleanedItems.push({id: p.id, name: p.name, price: p.price})
 	})
-	response.json(_response("ok", 200, null, {"menu": cleanedItems}))
+	return response.json(_response("ok", 200, null, {"menu": cleanedItems}))
 })
 
 app.post('/menu', async (request, response) => {
 		const name = request.body.name
 		const price = request.body.price
-		const items = await pastry.find({}, null, null).exec()
-		const isValidPastry = checkValidity(items, name, price)
+		const items = await Pastries.find({}, null, null).exec()
+		const isValidPastry = pastryIsValid(items, name, price)
 		const message = isValidPastry[1]
 
 		if (!isValidPastry[0]) {
-			response.json(_response("error", 401, message))
+			return response.json(_response("error", 401, message))
 		}
 		try {
-			const item = new pastry({id: items.length + 1, name: name, price: price})
+			const item = new Pastries({id: items.length + 1, name: name, price: price})
 			const id = await item.save(item)
 			if (id) {
-				response.json(_response("ok", 201, message))
+				return response.json(_response("ok", 201, message))
 			} else {
-				response.json(_response("error", 500, "An error occurred."))
+				return response.json(_response("error", 500, "An error occurred."))
 			}
 		} catch (error) {
-			response.json(_response("error", 500, "An error occurred."))
+			return response.json(_response("error", 500, "An error occurred."))
 		}
 	}
 )
 
 app.get('/menu/:id', async (request, response) => {
-	const item = await pastry.findOne({id: request.params.id}, null, null).exec()
+	const item = await Pastries.findOne({id: request.params.id}, null, null).exec()
 	if (!item) {
-		response.json(_response("error", 404, "Item not found."))
+		return response.json(_response("error", 404, "Item not found."))
 	}
 	const cleanedItem = {
 		id: item.id, name: item.name, price: item.price
 	}
-	response.json(_response("ok", 200, null, cleanedItem))
+	return response.json(_response("ok", 200, null, cleanedItem))
 
 })
 
 app.patch('/menu/:id', async (request, response) => {
-	const newId = request.body.id
-	const newName = request.body.name
-	const newPrice = request.body.price
+	const token = request.body ? request.body.token : null
+	if (!token) {
+		return response.json(_response("error", 403, "Missing JWT token."))
+	}
+	try {
+		const isValid = tokenIsValid(token)
+		if (!isValid) {
+			return response.json(_response("error", 403, "Token is invalid."))
+		}
+	} catch (error) {
+		return response.json(_response("error", 500, "An error occurred."))
+	}
 
-	const itemToUpdate = await pastry.findOne({id: request.params.id}, null, null).exec()
+	const itemToUpdate = await Pastries.findOne({id: request.params.id}, null, null).exec()
 	if (!itemToUpdate) {
-		response.json(_response("error", 404, "Item not found."))
+		return response.json(_response("error", 404, "Item not found."))
 	}
 
-	let idIsTaken
-	let nameIsTaken
-	if (newId !== itemToUpdate.id) {
-		idIsTaken = await pastry.findOne({id: newId}, null, null).exec()
-	}
-	if (newName !== itemToUpdate.name) {
-		nameIsTaken = await pastry.findOne({name: newName}, null, null).exec()
-	}
-	if (idIsTaken || nameIsTaken) {
-		let message;
-		if (nameIsTaken) message = "This name is taken."
-		if (idIsTaken) message = "This id is taken."
-		response.json(_response("error", 401, message))
+	try {
+		const newId = Math.floor(request.body.id)
+		const newName = request.body.name
+		const newPrice = request.body.price
+
+		let idIsTaken
+		let nameIsTaken
+		if (newId !== itemToUpdate.id) {
+			idIsTaken = await Pastries.findOne({id: newId}, null, null).exec()
+		}
+		if (newName !== itemToUpdate.name) {
+			nameIsTaken = await Pastries.findOne({name: newName}, null, null).exec()
+		}
+		if (idIsTaken || nameIsTaken) {
+			let message;
+			if (nameIsTaken) message = "This name is taken."
+			if (idIsTaken) message = "This id is taken."
+			return response.json(_response("error", 401, message))
+		}
+	} catch (error) {
+		console.log(error)
+		return response.json(_response("error", 403, "Invalid data format."))
 	}
 
 	try {
 		const updated = {}
-		if (newId) updated.price = newPrice
-		if (newName) updated.price = newName
+		if (newId) updated.id = newId
+		if (newName) updated.name = newName
 		if (newPrice) updated.price = newPrice
-		const item = await pastry.findOneAndUpdate({
+		const item = await Pastries.findOneAndUpdate({
 			id: request.params.id,
 		}, updated, null).exec()
 		if (item) {
-			response.json(_response("ok", 202, "Item updated successfully."))
+			return response.json(_response("ok", 202, "Item updated successfully."))
 		} else {
-			response.json(_response("error", 404, "Item not found."))
+			return response.json(_response("error", 404, "Item not found."))
 		}
 	} catch (error) {
-		response.json(_response("error", 500, "An error occurred."))
+		return response.json(_response("error", 500, "An error occurred."))
 	}
 
 })
 
 app.delete('/menu/:id', async (request, response) => {
-	const item = await pastry.findOne({id: request.params.id}, null, null).exec()
+	const token = request.body ? request.body.token : null
+	if (!token) {
+		return response.json(_response("error", 403, "Missing JWT token."))
+	} else if (!tokenIsValid(token)) {
+		return response.json(_response("error", 403, "Token is invalid."))
+	}
+
+	const item = await Pastries.findOne({id: request.params.id}, null, null).exec()
 	if (!item) {
-		response.json(_response("error", 404, "Item not found."))
+		return response.json(_response("error", 404, "Item not found."))
 	}
 	try {
-		const deleted = await pastry.deleteOne(item)
+		const deleted = await Pastries.deleteOne(item)
 		if (deleted) {
 			const cleanedItem = {id: item.id, name: item.name, price: item.price}
-			response.json(_response("success", 202, `Item #${item.id} deleted successfully.`, cleanedItem))
+			return response.json(_response("success", 202, `Item #${item.id} deleted successfully.`, cleanedItem))
 		} else {
-			response.json(_response("error", 500, "Deletion failed."))
+			return response.json(_response("error", 500, "Deletion failed."))
 		}
 	} catch (error) {
-		response.json(_response("error", 500, "An error occurred."))
+		return response.json(_response("error", 500, "An error occurred."))
 	}
 })
 
 main().catch(err => console.log(err)).then(() => {
 		app.listen(3000, () => {
+			//TODO: Add real logger to log errors
+			// Add custom error response for invalid json payload
 			console.log('Server started on port 3000!')
 		})
 	}
