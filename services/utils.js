@@ -7,4 +7,3 @@ export const apiResponse = (status, code, message = null, data = null) => {
 	if (data) response.data = data
 	return response
 }
-

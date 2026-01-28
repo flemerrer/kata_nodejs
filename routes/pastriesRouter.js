@@ -11,7 +11,7 @@ const pastriesSchema = new mongoose.Schema({
 })
 const Pastries = mongoose.model('Pastries', pastriesSchema)
 
-async function isValidNewPastry(name, price, id = null) {
+async function isValidNewPastry(name, price) {
 	const isDuplicateName = await Pastries.findOne({name: name}, null, null).exec()
 	if (!name || !price) {
 		return [false, "Missing body parameters."]
@@ -40,6 +40,13 @@ async function isDuplicate(name, id) {
 	}
 }
 
+const createUpdatedItemDTO = (newId, newName, newPrice) => {
+	const updated = {}
+	if (newId) updated.id = newId
+	if (newName) updated.name = newName
+	if (newPrice) updated.price = newPrice
+	return updated;
+}
 
 router.get('/pastries', async (request, response) => {
 	const items = await Pastries.find({}, null, null).exec()
@@ -56,7 +63,6 @@ router.post('/pastries', async (request, response) => {
 			const price = request.body.price
 			const isValidPastry = isValidNewPastry(name, price)
 			const message = isValidPastry[1]
-
 			if (!isValidPastry[0]) {
 				return response.json(apiResponse("error", 401, message))
 			}
@@ -92,43 +98,48 @@ router.patch('/pastries/:id', async (request, response) => {
 	if (!tokenIsValid(token)) {
 		return response.json(apiResponse("error", 403, "Token is invalid."))
 	}
+	try {
 	const itemToUpdate = await Pastries.findOne({id: request.params.id}, null, null).exec()
+	} catch (error) {
+		return response.json(apiResponse("error", 500, "An error occurred."))
+	}
 	if (!itemToUpdate) {
 		return response.json(apiResponse("error", 404, "Item not found."))
 	}
+	const newName = request.body.name
+	const newPrice = request.body.price
+	let newId
 	try {
-		const newId = Math.floor(request.body.id)
-		const newName = request.body.name
-		const newPrice = request.body.price
+		newId = Math.floor(parseInt(request.body.id))
+	} catch (error) {
+		return response.json(apiResponse("error", 403, "Item id must be an integer."))
+	}
+	try {
 		const isDuplicateItem = isDuplicate(newId, newName)
 		const message = isDuplicateItem[1]
 		if (isDuplicateItem) {
 			return response.json(apiResponse("error", 401, message))
 		}
-		const updated = {}
-		if (newId) updated.id = newId
-		if (newName) updated.name = newName
-		if (newPrice) updated.price = newPrice
+		const updated = createUpdatedItemDTO(newId, newName, newPrice);
 		const item = await Pastries.findOneAndUpdate({
 			id: request.params.id,
 		}, updated, null).exec()
 		if (item) {
-			return response.json(apiResponse("ok", 202, "Item updated successfully."))
+			return response.json(apiResponse("ok", 202, message))
 		} else {
 			return response.json(apiResponse("error", 404, "Item not found."))
 		}
 	} catch (error) {
-		console.log(error)
 		return response.json(apiResponse("error", 500, "An error occurred."))
 	}
-
 })
 
 router.delete('/pastries/:id', async (request, response) => {
 	const token = request.body ? request.body.token : null
 	if (!token) {
 		return response.json(apiResponse("error", 403, "Missing JWT token."))
-	} else if (!tokenIsValid(token)) {
+	}
+	if (!tokenIsValid(token)) {
 		return response.json(apiResponse("error", 403, "Token is invalid."))
 	}
 	const item = await Pastries.findOne({id: request.params.id}, null, null).exec()
