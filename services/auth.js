@@ -1,13 +1,13 @@
-const {loadEnvFile} = require("node:process")
 const jwt = require("jsonwebtoken")
-
-loadEnvFile('.env');
+process.loadEnvFile('.env');
 const SECRET = process.env.SECRET
 
-export const generateJwtToken = email => {
+const generateJwtToken = email => {
 	return jwt.sign({email: email}, SECRET)
 }
 
-export const tokenIsValid = token => {
+const isValidToken = token => {
 	return jwt.verify(token, SECRET);
 }
+
+module.exports = { generateJwtToken, isValidToken };

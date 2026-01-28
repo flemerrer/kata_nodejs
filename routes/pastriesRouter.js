@@ -1,6 +1,6 @@
 const mongoose = require("mongoose")
 const {apiResponse} = require("../services/utils.js")
-const {tokenIsValid} = require("../services/auth");
+const {checkJwtMiddleware} = require("../middleware/jwtMiddleware");
 
 const router = require('express').Router();
 
@@ -28,7 +28,7 @@ async function isValidNewPastry(name, price) {
 	}
 }
 
-async function isDuplicate(name, id) {
+async function isDuplicate(id, name) {
 	const isDuplicateId = await Pastries.findOne({id: id}, null, null).exec()
 	const isDuplicateName = await Pastries.findOne({name: name}, null, null).exec()
 	if (isDuplicateId) {
@@ -90,16 +90,10 @@ router.get('/pastries/:id', async (request, response) => {
 	return response.json(apiResponse("ok", 200, null, cleanedItem))
 })
 
-router.patch('/pastries/:id', async (request, response) => {
-	const token = request.body ? request.body.token : null
-	if (!token) {
-		return response.json(apiResponse("error", 403, "Missing JWT token."))
-	}
-	if (!tokenIsValid(token)) {
-		return response.json(apiResponse("error", 403, "Token is invalid."))
-	}
+router.patch('/pastries/:id', checkJwtMiddleware, async (request, response) => {
+	let itemToUpdate
 	try {
-	const itemToUpdate = await Pastries.findOne({id: request.params.id}, null, null).exec()
+		itemToUpdate = await Pastries.findOne({id: request.params.id}, null, null).exec()
 	} catch (error) {
 		return response.json(apiResponse("error", 500, "An error occurred."))
 	}
@@ -115,7 +109,7 @@ router.patch('/pastries/:id', async (request, response) => {
 		return response.json(apiResponse("error", 403, "Item id must be an integer."))
 	}
 	try {
-		const isDuplicateItem = isDuplicate(newId, newName)
+		const isDuplicateItem = await isDuplicate(newId, newName)
 		const message = isDuplicateItem[1]
 		if (isDuplicateItem) {
 			return response.json(apiResponse("error", 401, message))
@@ -134,14 +128,7 @@ router.patch('/pastries/:id', async (request, response) => {
 	}
 })
 
-router.delete('/pastries/:id', async (request, response) => {
-	const token = request.body ? request.body.token : null
-	if (!token) {
-		return response.json(apiResponse("error", 403, "Missing JWT token."))
-	}
-	if (!tokenIsValid(token)) {
-		return response.json(apiResponse("error", 403, "Token is invalid."))
-	}
+router.delete('/pastries/:id', checkJwtMiddleware, async (request, response) => {
 	const item = await Pastries.findOne({id: request.params.id}, null, null).exec()
 	if (!item) {
 		return response.json(apiResponse("error", 404, "Item not found."))

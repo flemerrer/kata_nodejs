@@ -13,8 +13,6 @@ app.use(pastriesRouter)
 
 main().catch(err => console.log(err)).then(() => {
 		app.listen(3000, () => {
-			//TODO: Add real logger to log errors
-			//TODO: Add custom error response for invalid json payload
 			console.log('Server started on port 3000!')
 		})
 	}

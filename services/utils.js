@@ -1,4 +1,4 @@
-export const apiResponse = (status, code, message = null, data = null) => {
+const apiResponse = (status, code, message = null, data = null) => {
 	const response = {
 		status: status,
 		code: code,
@@ -7,3 +7,5 @@ export const apiResponse = (status, code, message = null, data = null) => {
 	if (data) response.data = data
 	return response
 }
+
+module.exports = { apiResponse }
