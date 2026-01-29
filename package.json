@@ -3,6 +3,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.5",
-    "nodaemon": "^0.0.5"
+    "nodaemon": "^0.0.5",
+    "winston": "^3.19.0"
   }
 }

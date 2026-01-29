@@ -65,7 +65,7 @@ const getAllPastries = async () => {
 	items.forEach(p => {
 		dtoPastries.push(new PastryDto(p.id, p.name, p.price))
 	})
-	return apiResponse("ok", 200, null, {"menu": dtoPastries})
+	return apiResponse("ok", 200, null, dtoPastries)
 }
 
 const getOnePastry = async (request) => {
