@@ -1,6 +1,14 @@
 const mongoose = require("mongoose");
 const {apiResponse} = require("../services/utils.js")
 
+class PastryDto {
+	constructor(id, name, price) {
+		this.id = id
+		this.name = name
+		this.price = price
+	}
+}
+
 const pastriesSchema = new mongoose.Schema({
 	id: Number,
 	name: String,
@@ -38,7 +46,7 @@ async function isDuplicate(id, name) {
 	}
 }
 
-const createUpdatedItemDTO = (newId, newName, newPrice) => {
+const createPastryToUpdateModel = (newId, newName, newPrice) => {
 	const updated = {}
 	if (newId) updated.id = newId
 	if (newName) updated.name = newName
@@ -53,21 +61,19 @@ const getAllPastries = async () => {
 	} catch (error) {
 		return apiResponse("error", 500, "An error occurred.")
 	}
-	const cleanedItems = []
+	const dtoPastries = []
 	items.forEach(p => {
-		cleanedItems.push({id: p.id, name: p.name, price: p.price})
+		dtoPastries.push(new PastryDto(p.id, p.name, p.price))
 	})
-	return apiResponse("ok", 200, null, {"menu": cleanedItems})
+	return apiResponse("ok", 200, null, {"menu": dtoPastries})
 }
 
 const getOnePastry = async (request) => {
-	const item = await Pastries.findOne({id: request.params.id}, null, null).exec()
-	if (!item) {
+	const pastry = await Pastries.findOne({id: request.params.id}, null, null).exec()
+	if (!pastry) {
 		return apiResponse("error", 404, "Item not found.")
 	}
-	const cleanedItem = {
-		id: item.id, name: item.name, price: item.price
-	}
+	const cleanedItem = new PastryDto(pastry.id, pastry.name, pastry.price)
 	return apiResponse("ok", 200, null, cleanedItem)
 }
 
@@ -86,9 +92,9 @@ const createPastry = async (request) => {
 			message = isDuplicateItem[1]
 			return apiResponse("error", 401, message)
 		}
-		const item = new Pastries({id: id, name: name, price: price})
-		const newItem = await item.save(item)
-		if (newItem) {
+		const newPastry = new Pastries({id: id, name: name, price: price})
+		const isCreated = !!(await newPastry.save(newPastry))
+		if (isCreated) {
 			return apiResponse("ok", 201, message)
 		} else {
 			return apiResponse("error", 500, "An error occurred.")
@@ -99,13 +105,13 @@ const createPastry = async (request) => {
 }
 
 const updatePastry = async (request) => {
-	let itemToUpdate
+	let pastryToUpdate
 	try {
-		itemToUpdate = await Pastries.findOne({id: request.params.id}, null, null).exec()
+		pastryToUpdate = await Pastries.findOne({id: request.params.id}, null, null).exec()
 	} catch (error) {
 		return apiResponse("error", 500, "An error occurred.")
 	}
-	if (!itemToUpdate) {
+	if (!pastryToUpdate) {
 		return apiResponse("error", 404, "Item not found.")
 	}
 	const newName = request.body.name
@@ -122,11 +128,11 @@ const updatePastry = async (request) => {
 		if (isDuplicateItem) {
 			return apiResponse("error", 401, message)
 		}
-		const updated = createUpdatedItemDTO(newId, newName, newPrice);
-		const item = await Pastries.findOneAndUpdate({
+		const updated = createPastryToUpdateModel(newId, newName, newPrice);
+		const isUpdated = !!(await Pastries.findOneAndUpdate({
 			id: request.params.id,
-		}, updated, null).exec()
-		if (item) {
+		}, updated, null).exec())
+		if (isUpdated) {
 			return apiResponse("ok", 202, message)
 		} else {
 			return apiResponse("error", 404, "Item not found.")
@@ -137,15 +143,15 @@ const updatePastry = async (request) => {
 }
 
 const deletePastry = async (request) => {
-	const item = await Pastries.findOne({id: request.params.id}, null, null).exec()
-	if (!item) {
+	const pastry = await Pastries.findOne({id: request.params.id}, null, null).exec()
+	if (!pastry) {
 		return apiResponse("error", 404, "Item not found.")
 	}
 	try {
-		const deleted = await Pastries.deleteOne(item)
+		const deleted = await Pastries.deleteOne(pastry)
 		if (deleted) {
-			const cleanedItem = {id: item.id, name: item.name, price: item.price}
-			return apiResponse("success", 202, `Item #${item.id} deleted successfully.`, cleanedItem)
+			const dtoPastry = new PastryDto(pastry.id, pastry.name,pastry.price)
+			return apiResponse("success", 202, `Item #${pastry.id} deleted successfully.`, dtoPastry)
 		} else {
 			return apiResponse("error", 500, "Deletion failed.")
 		}
@@ -153,6 +159,5 @@ const deletePastry = async (request) => {
 		return apiResponse("error", 500, "An error occurred.")
 	}
 }
-
 
 module.exports = {getAllPastries, getOnePastry, createPastry, updatePastry, deletePastry}
