@@ -28,6 +28,7 @@ async function isValidNewPastry(name, price) {
 	}
 }
 
+//FIXME: might need to make better functions as these aren't practical and a bit confusing to use (opposite logic)
 async function isDuplicate(id, name) {
 	const isDuplicateId = await Pastries.findOne({id: id}, null, null).exec()
 	const isDuplicateName = await Pastries.findOne({name: name}, null, null).exec()
@@ -61,14 +62,20 @@ router.post('/pastries', async (request, response) => {
 		try {
 			const name = request.body.name
 			const price = request.body.price
-			const isValidPastry = isValidNewPastry(name, price)
-			const message = isValidPastry[1]
+			const id = request.body.id
+			const isValidPastry = await isValidNewPastry(name, price)
+			let message = isValidPastry[1]
 			if (!isValidPastry[0]) {
 				return response.json(apiResponse("error", 401, message))
 			}
-			const item = new Pastries({id: items.length + 1, name: name, price: price})
-			const id = await item.save(item)
-			if (id) {
+			const isDuplicateItem = await isDuplicate(id, name)
+			if (!isDuplicateItem[0]) {
+				message = isDuplicateItem[1]
+				return response.json(apiResponse("error", 401, message))
+			}
+			const item = new Pastries({id: id, name: name, price: price})
+			const newItem = await item.save(item)
+			if (newItem) {
 				return response.json(apiResponse("ok", 201, message))
 			} else {
 				return response.json(apiResponse("error", 500, "An error occurred."))
