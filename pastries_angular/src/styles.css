@@ -1,0 +1,9 @@
+/* You can add global styles to this file, and also import other style files */
+
+@import "tailwindcss";
+
+:root {
+    font-family: Helvetica, sans-serif;
+    max-width: 1080px;
+    margin: auto;
+}

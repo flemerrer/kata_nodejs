@@ -1,0 +1,10 @@
+<img alt="baker" ngSrc="/baker.jpg" height="350" width="620">
+<h1 class="text-center m-6 text-2xl font-bold">Nos Pâtisseries</h1>
+<div id="items-list" class="justify-items-center">
+	@for (pastry of pastries(); track pastry.id) {
+		<div class="card flex flex-col justify-center items-center min-h-25 w-45 rounded-md bg-white shadow-md">
+			<h4>{{ pastry.name }}</h4>
+			<p class="font-bold">{{ pastry.price }}&nbsp;€</p>
+		</div>
+	}
+</div>

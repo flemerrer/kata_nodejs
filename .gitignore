@@ -2,3 +2,5 @@ node_modules
 .idea
 .env
 **.log
+pastries_angular/node_modules
+pastries_angular/.angular
